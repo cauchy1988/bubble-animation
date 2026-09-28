@@ -912,10 +912,10 @@
         return;
       }
       showSpeechHint('🔈 正在试音...');
-      speakText('你好，我是语音解说。如果你能听到这句话，说明语音工作正常。');
+      speakText('你好，我是语音解说。如果你能听到这句话，说明语音工作正常。', true);
     }
 
-    function speakText(text) {
+    function speakText(text, verbose = false) {
       if (!voiceEnabled || !speechUnlocked || !('speechSynthesis' in window)) return;
       try {
         window.speechSynthesis.cancel(); // 停止上一句
@@ -923,22 +923,42 @@
 
         // 去除可能残留的表情符号
         const clean = text.replace(/[📊🧬👤📰💬🌐📦💡🎉🚀⚡🫧🎯✅]/g, '');
-        const utterance = new SpeechSynthesisUtterance(clean);
-        utterance.lang = 'zh-CN';
-        if (currentVoice) utterance.voice = currentVoice;
-        utterance.rate = 1.0;  // 自然语速
-        utterance.pitch = 1.0;
-        utterance.onerror = (e) => {
-          // cancel() 触发的 interrupted/canceled 属正常，忽略
-          if (e.error === 'interrupted' || e.error === 'canceled') return;
-          showSpeechHint(`⚠️ 语音播放失败（${e.error}），已回退到系统默认音色`);
-          if (currentVoice) {
-            currentVoice = null; // 音色异常时回退默认音色
-            localStorage.removeItem('bubbleVoiceURI');
-            speakText(text);
+
+        // iOS Safari 缺陷：cancel() 后必须稍候再 speak，否则整句会被静默吞掉
+        setTimeout(() => {
+          const utterance = new SpeechSynthesisUtterance(clean);
+          utterance.lang = 'zh-CN';
+          if (currentVoice) utterance.voice = currentVoice;
+          utterance.rate = 1.0;  // 自然语速
+          utterance.pitch = 1.0;
+
+          let started = false;
+          utterance.onstart = () => {
+            started = true;
+            if (verbose) {
+              showSpeechHint('✅ 语音引擎已开始朗读。若仍听不到声音：1) 关闭 iPhone 左侧静音开关 2) 按音量键调大音量 3) 断开蓝牙耳机再试');
+            }
+          };
+          utterance.onerror = (e) => {
+            // cancel() 触发的 interrupted/canceled 属正常，忽略
+            if (e.error === 'interrupted' || e.error === 'canceled') return;
+            showSpeechHint(`⚠️ 语音播放失败（${e.error}），已回退到系统默认音色`);
+            if (currentVoice) {
+              currentVoice = null; // 音色异常时回退默认音色
+              localStorage.removeItem('bubbleVoiceURI');
+              speakText(text, verbose);
+            }
+          };
+          window.speechSynthesis.speak(utterance);
+
+          if (verbose) {
+            setTimeout(() => {
+              if (!started) {
+                showSpeechHint('❌ 语音引擎无响应。请改用 Safari 直接打开网页（微信等内置浏览器可能屏蔽语音），或检查 设置 → 辅助功能 → 朗读内容');
+              }
+            }, 1500);
           }
-        };
-        window.speechSynthesis.speak(utterance);
+        }, 80);
       } catch (err) {
         showSpeechHint('⚠️ 语音不可用：' + err.message);
       }
