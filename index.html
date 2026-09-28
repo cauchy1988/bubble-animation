@@ -493,7 +493,7 @@
     <div class="stage-card">
       <div class="stage-header">
         <span id="stageTitle">📊 冒泡排序实时演算</span>
-        <span id="stageStatus">自动演示中...</span>
+        <span id="stageStatus">就绪 — 点击“开始演示”</span>
       </div>
 
       <!-- 模式 1: 冒泡排序视图 -->
@@ -552,7 +552,7 @@
         </div>
       </div>
       <div class="narration-text" id="narrationText">
-        准备就绪，即将开始演示...
+        准备就绪，点击“开始演示”按钮播放（含语音解说）。
       </div>
       <div class="narration-sub" id="narrationSub">
         💡 说明：黄色代表比对，红色代表位置互换，绿色代表已沉底就位。
@@ -563,7 +563,7 @@
     <div class="controls-card">
       <div class="btn-row">
         <button class="btn btn-secondary" onclick="prevStep()">⏮ 上一步</button>
-        <button class="btn" id="playBtn" onclick="togglePlay()">⏸ 暂停</button>
+        <button class="btn" id="playBtn" onclick="togglePlay()">▶ 开始演示</button>
         <button class="btn btn-secondary" onclick="nextStep()">⏭ 下一步</button>
         <button class="btn btn-secondary" onclick="restart()">🔄 重新开始</button>
       </div>
@@ -582,12 +582,24 @@
   <script>
     // 状态定义
     let currentMode = 'sort'; // 'sort' | 'cache'
-    let isPlaying = true;
+    let isPlaying = false;
     let timer = null;
     let stepDelay = 1000;
     let voiceEnabled = true;
     let voiceList = [];
     let currentVoice = null;
+    // 浏览器自动播放策略：首次用户交互前禁止语音，交互后解锁
+    let speechUnlocked = false;
+
+    function unlockSpeech() {
+      if (speechUnlocked) return;
+      speechUnlocked = true;
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.resume();
+      }
+    }
+    document.addEventListener('pointerdown', unlockSpeech);
+    document.addEventListener('keydown', unlockSpeech);
 
     /* ========================================================
        1. 冒泡排序 (Bubble Sort) 演示逻辑
@@ -875,7 +887,7 @@
     }
 
     function speakText(text) {
-      if (!voiceEnabled || !('speechSynthesis' in window)) return;
+      if (!voiceEnabled || !speechUnlocked || !('speechSynthesis' in window)) return;
       window.speechSynthesis.cancel(); // 停止上一句
 
       // 去除可能残留的表情符号
@@ -976,8 +988,12 @@
     }
 
     function togglePlay() {
-      if (isPlaying) pause();
-      else play();
+      if (isPlaying) {
+        pause();
+      } else {
+        applyCurrentStep(); // 立即朗读当前步骤
+        play();
+      }
     }
 
     function nextStep() {
@@ -1058,14 +1074,13 @@
       play();
     }
 
-    // 初始化启动
+    // 初始化启动（默认暂停，等待用户点击“开始演示”以解锁语音）
     sortSteps = generateSortSteps(sortInitArray);
     refreshVoices();
     if ('speechSynthesis' in window) {
       window.speechSynthesis.onvoiceschanged = refreshVoices;
     }
     applyCurrentStep();
-    play();
   </script>
 </body>
 </html>
